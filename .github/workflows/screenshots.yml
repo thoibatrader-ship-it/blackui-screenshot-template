@@ -1,0 +1,48 @@
+name: Capture Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      # NOTE: no permit check yet (free and open for now).
+      # Later: add a "Verify media permit" step HERE, as the very first step, same pattern as build-apk.yml.
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install tool dependencies
+        working-directory: screenshot-tool
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: screenshot-tool
+        run: npx playwright install --with-deps chromium
+
+      - name: Scan and capture
+        working-directory: screenshot-tool
+        run: node capture.mjs
+
+      # Small artifact first: manifest.json + thumbnails (the AI looks at these).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots-preview
+          path: screenshot-tool/out/preview
+          if-no-files-found: warn
+
+      # Full-resolution PNGs (the dashboard picks the chosen ones out of this).
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: shots-full
+          path: screenshot-tool/out/full
+          if-no-files-found: warn

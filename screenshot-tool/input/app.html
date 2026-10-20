@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo App</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,sans-serif;background:#0f1220;color:#fff;height:100vh;display:flex;flex-direction:column}
+  .screen{display:none;flex:1;padding:24px;overflow:auto}
+  .screen.on{display:block}
+  h1{margin:0 0 12px;font-size:28px}
+  .card{background:#1c2140;border-radius:16px;padding:18px;margin:12px 0;font-size:18px}
+  nav{display:flex;background:#171b34}
+  nav button{flex:1;padding:18px 0;border:0;background:none;color:#9aa3d6;font-size:16px}
+  nav button.on{color:#fff;font-weight:700;background:#222850}
+  .toggle{margin-top:16px;padding:10px 16px;border-radius:20px;border:0;background:#3b4390;color:#fff}
+  .grad{height:160px;border-radius:16px;background:linear-gradient(135deg,#7c5cff,#27c4ff)}
+</style>
+</head>
+<body>
+  <section class="screen on" data-screen="home" id="s-home">
+    <h1>Home</h1><div class="grad"></div>
+    <div class="card">Welcome back! 3 tasks today.</div>
+    <div class="card">Streak: 12 days</div>
+    <button class="toggle" id="tgl">Toggle badge</button>
+  </section>
+  <section class="screen" data-screen="stats" id="s-stats">
+    <h1>Stats</h1>
+    <div class="card">Weekly total: 42</div><div class="card">Best day: Friday</div>
+    <div class="grad" style="background:linear-gradient(135deg,#ff7a59,#ffc15c)"></div>
+  </section>
+  <section class="screen" data-screen="settings" id="s-settings">
+    <h1>Settings</h1>
+    <div class="card">Dark mode: on</div><div class="card">Notifications: daily</div>
+    <button class="toggle" id="reset">Reset all data</button>
+  </section>
+  <nav>
+    <button class="on" data-go="home">Home</button>
+    <button data-go="stats">Stats</button>
+    <button data-go="settings">Settings</button>
+  </nav>
+<script>
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('on'));
+    document.getElementById('s-' + b.dataset.go).classList.add('on');
+    b.classList.add('on');
+  }));
+  document.getElementById('tgl').addEventListener('click', e => { e.target.style.opacity = e.target.style.opacity === '0.5' ? '1' : '0.5'; });
+</script>
+</body>
+</html>

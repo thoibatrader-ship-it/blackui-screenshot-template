@@ -1,0 +1,11 @@
+{
+  "name": "blackui-screenshot-tool",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Scans an HTML app in headless Chromium and captures candidate screens at the requested device sizes.",
+  "dependencies": {
+    "playwright": "1.56.1",
+    "sharp": "0.33.5"
+  }
+}
