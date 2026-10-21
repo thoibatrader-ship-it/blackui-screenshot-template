@@ -2,8 +2,20 @@
   "version": 1,
   "entry": "app.html",
   "devices": [
-    { "id": "phone", "width": 360, "height": 640, "scale": 3, "mobile": true },
-    { "id": "tablet10", "width": 800, "height": 1280, "scale": 2, "mobile": true }
+    {
+      "id": "phone",
+      "width": 360,
+      "height": 640,
+      "scale": 3,
+      "mobile": true
+    },
+    {
+      "id": "tablet10",
+      "width": 1280,
+      "height": 800,
+      "scale": 2,
+      "mobile": true
+    }
   ],
   "maxCandidates": 16,
   "minChange": 0.1,

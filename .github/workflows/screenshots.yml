@@ -1,7 +1,17 @@
 name: Capture Screenshots
 
+# One repo serves many apps: each app lives in jobs/<job>/ (app.html + request.json).
+# The dashboard passes `job` (letters, digits, - and _ only). Empty = the legacy screenshot-tool/input folder.
+run-name: Capture Screenshots - ${{ inputs.job || 'default' }}
+
 on:
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'App folder name under jobs/ (leave empty for screenshot-tool/input)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   capture:
@@ -29,13 +39,16 @@ jobs:
 
       - name: Scan and capture
         working-directory: screenshot-tool
+        env:
+          JOB: ${{ inputs.job }}
         run: node capture.mjs
 
       # Small artifact first: manifest.json + thumbnails (the AI looks at these).
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shots-preview
+          name: shots-preview-${{ inputs.job || 'default' }}
+          retention-days: 7
           path: screenshot-tool/out/preview
           if-no-files-found: warn
 
@@ -43,6 +56,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: shots-full
+          name: shots-full-${{ inputs.job || 'default' }}
+          retention-days: 3
           path: screenshot-tool/out/full
           if-no-files-found: warn

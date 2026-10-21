@@ -19,7 +19,12 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const INPUT = path.join(ROOT, 'input');
+// One repo, many apps: with env JOB=<name> the app lives in <repo>/jobs/<name>/ (otherwise the legacy input/ folder).
+const JOB = String(process.env.JOB || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+const INPUT = JOB ? path.join(ROOT, '..', 'jobs', JOB) : path.join(ROOT, 'input');
+const INPUT_LABEL = JOB ? `jobs/${JOB}` : 'input';
+// Hard cap per run (resource guard). The dashboard enforces the same number.
+export const MAX_SCREENS = 20;
 const OUT = path.join(ROOT, 'out');
 const OUT_PREVIEW = path.join(OUT, 'preview');
 const OUT_THUMBS = path.join(OUT_PREVIEW, 'thumbs');
@@ -48,7 +53,7 @@ export function normalizeRequest(raw) {
   const warnings = [];
   const req = {
     entry: typeof r.entry === 'string' && r.entry ? r.entry.replace(/^\/+/, '') : 'app.html',
-    maxCandidates: Math.floor(clampNum(r.maxCandidates, 1, 30, 16)),
+    maxCandidates: Math.floor(clampNum(r.maxCandidates, 1, MAX_SCREENS, 16)),
     minChange: clampNum(r.minChange, 0.01, 0.9, 0.04),
     maxDepth: Math.floor(clampNum(r.maxDepth, 0, 4, 3)),
     maxTries: Math.floor(clampNum(r.maxTries, 5, 120, 70)),
@@ -160,7 +165,24 @@ async function makeContext(browser, dev, req) {
 }
 
 async function runSteps(page, steps, req) {
+  let stepNo = 0;
   for (const s of steps) {
+    stepNo++;
+    try { await runOneStep(page, s, req); }
+    catch (e) { throw new Error(`step ${stepNo}: ${String(e.message).split('\n')[0]}`); }
+  }
+}
+
+async function runOneStep(page, s, req) {
+  {
+    // verify the target exists BEFORE waiting on it (the AI may have guessed a button that is not there)
+    const target = s.click || (Array.isArray(s.fill) ? s.fill[0] : null);
+    if (target) {
+      let n = 0;
+      try { n = await page.locator(target).count(); } catch (e) { throw new Error(`bad selector ${target}`); }
+      if (!n) { await page.waitForTimeout(400); n = await page.locator(target).count().catch(() => 0); }
+      if (!n) throw new Error(`not found: ${target}`);
+    }
     if (s.click) {
       try { await page.click(s.click, { timeout: req.clickTimeoutMs }); }
       catch (e) {
@@ -179,7 +201,7 @@ async function runSteps(page, steps, req) {
       await page.mouse.up();
     }
     else if (s.hook !== undefined) await page.evaluate(k => window.__shots.show(k), s.hook);
-    else if (s.wait) { await page.waitForTimeout(Math.min(Number(s.wait) || 0, 5000)); continue; }
+    else if (s.wait) { await page.waitForTimeout(Math.min(Number(s.wait) || 0, 5000)); return; }
     await settle(page, req.settleMs);
   }
 }
@@ -312,7 +334,8 @@ async function discover(browser, url, req, dev, log) {
 
     // 1) explicit plan from the dashboard
     if (req.screens) {
-      const cands = req.screens.slice(0, 30).map((s, i) => ({
+      if (req.screens.length > MAX_SCREENS) warnings.push(`Plan has ${req.screens.length} screens; only the first ${MAX_SCREENS} are captured (per-run limit).`);
+      const cands = req.screens.slice(0, MAX_SCREENS).map((s, i) => ({
         key: slug(s.key || s.label, 'screen-' + (i + 1)), label: String(s.label || s.key || ''), source: 'plan',
         steps: Array.isArray(s.steps) ? s.steps : [], depth: (Array.isArray(s.steps) ? s.steps.length : 0)
       }));
@@ -322,7 +345,8 @@ async function discover(browser, url, req, dev, log) {
     // 2) hook exposed by the app
     const hook = await rootHook(page);
     if (hook && hook.length) {
-      const cands = hook.slice(0, 30).map(h => ({ key: slug(h.key), label: h.label, source: 'hook', steps: [{ hook: h.key }], depth: 1 }));
+      if (hook.length > MAX_SCREENS) warnings.push(`App lists ${hook.length} screens; only the first ${MAX_SCREENS} are captured (per-run limit).`);
+      const cands = hook.slice(0, MAX_SCREENS).map(h => ({ key: slug(h.key), label: h.label, source: 'hook', steps: [{ hook: h.key }], depth: 1 }));
       return { mode: 'hook', candidates: cands, warnings };
     }
 
@@ -377,7 +401,7 @@ async function main() {
   const log = m => console.log(m);
   const startedAt = new Date().toISOString();
   const manifest = {
-    version: 1, ok: false, error: null, startedAt, finishedAt: null, mode: null, entry: null,
+    version: 1, ok: false, error: null, job: JOB || null, startedAt, finishedAt: null, mode: null, entry: null,
     devices: [], screens: [], skipped: [], warnings: [], stats: {}
   };
   await fs.rm(OUT, { recursive: true, force: true });
@@ -388,7 +412,7 @@ async function main() {
   try {
     let raw = {};
     try { raw = JSON.parse(await fs.readFile(path.join(INPUT, 'request.json'), 'utf8')); }
-    catch (e) { manifest.warnings.push('request.json missing or invalid: using defaults.'); }
+    catch (e) { manifest.warnings.push(`${INPUT_LABEL}/request.json missing or invalid: using defaults.`); }
     const { req, warnings } = normalizeRequest(raw);
     manifest.warnings.push(...warnings);
     manifest.entry = req.entry;
@@ -397,7 +421,7 @@ async function main() {
 
     const entryFile = path.normalize(path.join(INPUT, req.entry));
     if (!entryFile.startsWith(INPUT + path.sep)) throw new Error('entry must stay inside the input folder.');
-    await fs.access(entryFile).catch(() => { throw new Error(`HTML entry file not found: input/${req.entry}`); });
+    await fs.access(entryFile).catch(() => { throw new Error(`HTML entry file not found: ${INPUT_LABEL}/${req.entry}`); });
 
     const srv = await startServer(INPUT);
     server = srv.server;
@@ -439,6 +463,9 @@ async function main() {
             const name = `${c.key}__${dev.id}`;
             await fs.writeFile(path.join(OUT_FULL, name + '.png'), png);
             await fs.writeFile(path.join(OUT_THUMBS, name + '.jpg'), thumb);
+            // what the AI can click from this screen (helps it repair a plan in round 2); first device only
+            let buttons;
+            if (dev === req.devices[0]) { try { buttons = await listClickables(page, req); } catch (e) { /* optional */ } }
             const sig = await signature(png);
             const twin = sigs.find(s => diffFrac(s.sig, sig) < 0.02);
             sigs.push({ key: c.key, sig });
@@ -446,6 +473,7 @@ async function main() {
               full: name + '.png', thumb: 'thumbs/' + name + '.jpg', width: meta.width, height: meta.height, bytes: png.length,
               ...(twin ? { looksLike: twin.key } : {})
             };
+            if (buttons) byKey.get(c.key).buttons = buttons;
           } catch (e) {
             manifest.skipped.push({ key: c.key, device: dev.id, reason: String(e.message).split('\n')[0].slice(0, 160) });
           }
