@@ -1,25 +1,30 @@
 {
  "version": 1,
  "entry": "app.html",
+ "settleMs": 600,
  "devices": [
   {
    "id": "phone",
    "width": 360,
    "height": 720,
-   "scale": 1,
+   "scale": 3,
+   "mobile": true
+  },
+  {
+   "id": "tablet",
+   "width": 1280,
+   "height": 800,
+   "scale": 2,
    "mobile": true
   }
  ],
- "settleMs": 400,
  "screens": [
   {
-   "key": "blank",
-   "label": "Blank canvas",
-   "steps": []
-  },
-  {
-   "key": "letter-1",
-   "label": "Letter 1",
+   "key": "p-letter",
+   "label": "Letter",
+   "devices": [
+    "phone"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -36,128 +41,11 @@
    ]
   },
   {
-   "key": "letter-2",
-   "label": "Letter 2",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(2)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "letter-3",
-   "label": "Letter 3",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(3)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "numbers-1",
-   "label": "numbers 1",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=numbers]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(1)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "numbers-2",
-   "label": "numbers 2",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=numbers]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(2)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "shapes-1",
-   "label": "shapes 1",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=shapes]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(1)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "shapes-2",
-   "label": "shapes 2",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=shapes]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(2)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "animals-1",
-   "label": "animals 1",
+   "key": "p-animal",
+   "label": "Animal",
+   "devices": [
+    "phone"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -177,29 +65,11 @@
    ]
   },
   {
-   "key": "animals-2",
-   "label": "animals 2",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=animals]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(2)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "fruits-1",
-   "label": "fruits 1",
+   "key": "p-fruit",
+   "label": "Fruit",
+   "devices": [
+    "phone"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -219,8 +89,11 @@
    ]
   },
   {
-   "key": "fruits-2",
-   "label": "fruits 2",
+   "key": "t-shape",
+   "label": "Shape",
+   "devices": [
+    "tablet"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -229,10 +102,10 @@
      "click": "#guideSwitch"
     },
     {
-     "click": "#guideTabs button[data-tab=fruits]"
+     "click": "#guideTabs button[data-tab=shapes]"
     },
     {
-     "click": "#guideGrid button:nth-of-type(2)"
+     "click": "#guideGrid button:nth-of-type(1)"
     },
     {
      "click": "#toolbar [data-action=hide]"
@@ -240,8 +113,11 @@
    ]
   },
   {
-   "key": "vehicles-1",
-   "label": "vehicles 1",
+   "key": "t-vehicle",
+   "label": "Vehicle",
+   "devices": [
+    "tablet"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -261,8 +137,11 @@
    ]
   },
   {
-   "key": "vehicles-2",
-   "label": "vehicles 2",
+   "key": "t-number",
+   "label": "Number",
+   "devices": [
+    "tablet"
+   ],
    "steps": [
     {
      "click": "#menuBtn"
@@ -271,73 +150,10 @@
      "click": "#guideSwitch"
     },
     {
-     "click": "#guideTabs button[data-tab=vehicles]"
+     "click": "#guideTabs button[data-tab=numbers]"
     },
     {
      "click": "#guideGrid button:nth-of-type(2)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "objects-1",
-   "label": "objects 1",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=objects]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(1)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "lower-1",
-   "label": "lower 1",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=lower]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(1)"
-    },
-    {
-     "click": "#toolbar [data-action=hide]"
-    }
-   ]
-  },
-  {
-   "key": "lines-1",
-   "label": "lines 1",
-   "steps": [
-    {
-     "click": "#menuBtn"
-    },
-    {
-     "click": "#guideSwitch"
-    },
-    {
-     "click": "#guideTabs button[data-tab=lines]"
-    },
-    {
-     "click": "#guideGrid button:nth-of-type(1)"
     },
     {
      "click": "#toolbar [data-action=hide]"
@@ -345,5 +161,5 @@
    ]
   }
  ],
- "_note": "Tested example for Magic Doodle (360x720). Ends each screen with a click on the toolbar hide button so the picture is not covered."
+ "_note": "Tested example for Magic Doodle: phone and tablet get DIFFERENT screens (per-screen \"devices\"). Each screen ends with a click on the toolbar hide button."
 }

@@ -186,9 +186,12 @@ async function runOneStep(page, s, req) {
     if (s.click) {
       try { await page.click(s.click, { timeout: req.clickTimeoutMs }); }
       catch (e) {
-        // animated / pulsing buttons never become "stable"; retry once without that check
-        if (!/stable|intercept/i.test(String(e.message))) throw e;
-        await page.click(s.click, { timeout: req.clickTimeoutMs, force: true });
+        const msg = String(e.message);
+        if (!/stable|intercept|outside of the viewport|not visible|visible/i.test(msg)) throw e;
+        // 1) animated / pulsing buttons never become "stable": retry without that check
+        // 2) buttons the browser refuses to click (off-screen, covered, hidden toolbar): fire the click on the element itself
+        try { await page.click(s.click, { timeout: req.clickTimeoutMs, force: true }); }
+        catch (e2) { await page.locator(s.click).first().dispatchEvent('click', {}, { timeout: req.clickTimeoutMs }); }
       }
     }
     else if (s.fill) await page.fill(s.fill[0], String(s.fill[1]), { timeout: req.clickTimeoutMs });
@@ -337,7 +340,8 @@ async function discover(browser, url, req, dev, log) {
       if (req.screens.length > MAX_SCREENS) warnings.push(`Plan has ${req.screens.length} screens; only the first ${MAX_SCREENS} are captured (per-run limit).`);
       const cands = req.screens.slice(0, MAX_SCREENS).map((s, i) => ({
         key: slug(s.key || s.label, 'screen-' + (i + 1)), label: String(s.label || s.key || ''), source: 'plan',
-        steps: Array.isArray(s.steps) ? s.steps : [], depth: (Array.isArray(s.steps) ? s.steps.length : 0)
+        steps: Array.isArray(s.steps) ? s.steps : [], depth: (Array.isArray(s.steps) ? s.steps.length : 0),
+        devices: Array.isArray(s.devices) && s.devices.length ? s.devices.map(d => String(d)) : null
       }));
       return { mode: 'plan', candidates: cands, warnings };
     }
@@ -444,7 +448,7 @@ async function main() {
     log(`Mode: ${found.mode}. Candidates: ${found.candidates.length}`);
 
     const byKey = new Map();
-    for (const c of found.candidates) byKey.set(c.key, { key: c.key, label: c.label, title: c.title || '', hint: c.hint || '', source: c.source, depth: c.depth, steps: c.steps, files: {} });
+    for (const c of found.candidates) byKey.set(c.key, { key: c.key, devices: c.devices || undefined, label: c.label, title: c.title || '', hint: c.hint || '', source: c.source, depth: c.depth, steps: c.steps, files: {} });
 
     for (const dev of req.devices) {
       log(`Capturing on ${dev.id} (${dev.width}x${dev.height} @${dev.scale}x -> ${dev.pixelWidth}x${dev.pixelHeight}px)`);
@@ -452,10 +456,16 @@ async function main() {
       const sigs = [];
       try {
         for (const c of found.candidates) {
+          if (c.devices && !c.devices.includes(dev.id)) continue;   // screen is meant for other devices only
           if (Date.now() > DEADLINE) { manifest.skipped.push({ key: c.key, device: dev.id, reason: 'time budget reached' }); continue; }
           try {
             await openAndRun(page, url, c.steps, req);
-            const shot = await page.screenshot({ type: 'png', animations: req.animations });
+            let shot;
+            try { shot = await page.screenshot({ type: 'png', animations: req.animations, timeout: 45000 }); }
+            catch (e1) {   // heavy canvas/animated pages sometimes stall the first try: once more, without waiting for animations
+              await page.waitForTimeout(500);
+              shot = await page.screenshot({ type: 'png', animations: 'allow', timeout: 45000 });
+            }
             if (await isBlank(shot)) { manifest.skipped.push({ key: c.key, device: dev.id, reason: 'blank screenshot' }); continue; }
             const png = await sharp(shot).flatten({ background: '#ffffff' }).removeAlpha().png({ compressionLevel: 9 }).toBuffer();
             const meta = await sharp(png).metadata();
@@ -465,7 +475,7 @@ async function main() {
             await fs.writeFile(path.join(OUT_THUMBS, name + '.jpg'), thumb);
             // what the AI can click from this screen (helps it repair a plan in round 2); first device only
             let buttons;
-            if (dev === req.devices[0]) { try { buttons = await listClickables(page, req); } catch (e) { /* optional */ } }
+            if (!byKey.get(c.key).buttons) { try { buttons = await listClickables(page, req); } catch (e) { /* optional */ } }
             const sig = await signature(png);
             const twin = sigs.find(s => diffFrac(s.sig, sig) < 0.02);
             sigs.push({ key: c.key, sig });

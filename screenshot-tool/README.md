@@ -43,7 +43,7 @@ If a run fails, `manifest.json` still exists with `"ok": false` and an `error` m
 ```
 - `devices`: up to 4. Output pixels = width x height x scale. Nothing is forced to a store preset;
   Google Play rule hints show up in `warnings` only.
-- `screens` (optional): an exact list. If given, nothing is scanned. **At most 20 screens per run** (extra ones are dropped with a warning). Every click/fill target is checked first; a missing button skips only that screen. Step types: `click`, `fill:[selector,value]`, `press`, `wait`, `drag:[[x,y],[x,y],...]` (draw on a canvas; CSS px).
+- `screens` (optional): an exact list. If given, nothing is scanned. **At most 20 screens per run** (extra ones are dropped with a warning). A screen may carry `"devices": ["phone"]` (or `["tablet"]`) to be captured on those devices only, so each device can show different screens. Every click/fill target is checked first; a missing button skips only that screen. Step types: `click`, `fill:[selector,value]`, `press`, `wait`, `drag:[[x,y],[x,y],...]` (draw on a canvas; CSS px).
 - `seed.localStorage` (optional): demo data set before the app starts.
 - `blockedWords` (optional): extra words that stop a button from being clicked while scanning.
 
