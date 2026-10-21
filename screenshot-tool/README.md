@@ -35,7 +35,7 @@ If a run fails, `manifest.json` still exists with `"ok": false` and an `error` m
 ```
 - `devices`: up to 4. Output pixels = width x height x scale. Nothing is forced to a store preset;
   Google Play rule hints show up in `warnings` only.
-- `screens` (optional): an exact list. If given, nothing is scanned. Step types: `click`, `fill:[selector,value]`, `press`, `wait`.
+- `screens` (optional): an exact list. If given, nothing is scanned. Step types: `click`, `fill:[selector,value]`, `press`, `wait`, `drag:[[x,y],[x,y],...]` (draw on a canvas; CSS px).
 - `seed.localStorage` (optional): demo data set before the app starts.
 - `blockedWords` (optional): extra words that stop a button from being clicked while scanning.
 
@@ -47,7 +47,12 @@ If a run fails, `manifest.json` still exists with `"ok": false` and an `error` m
    `minChange` (10% by default) from every screen already kept. Buttons with words like delete, reset,
    buy, logout, install are never clicked. A `data-screen="name"` attribute on a screen's root element gives it a clean name.
 
+## Landscape / games
+Landscape is just a device with width > height (e.g. `{ "id": "land", "width": 740, "height": 360, "scale": 2 }`).
+Some apps (e.g. racing games) show a "turn your phone" overlay in portrait, so use a landscape device for them.
+
 ## Limits to know about
 - Canvas games with no hook and no clickable buttons will only give the first screen.
 - Screens that need data (e.g. a filled list) need `seed.localStorage` or a hook.
-- Time budget: about 11 minutes per run.
+- Time budget: about 11 minutes per run. `clickTimeoutMs` (default 1500) is how long to wait for a button before skipping it.
+- A new screen counts as different if its pixels differ by `minChange` OR most of its visible words changed.

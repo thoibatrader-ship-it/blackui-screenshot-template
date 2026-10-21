@@ -49,10 +49,11 @@ export function normalizeRequest(raw) {
   const req = {
     entry: typeof r.entry === 'string' && r.entry ? r.entry.replace(/^\/+/, '') : 'app.html',
     maxCandidates: Math.floor(clampNum(r.maxCandidates, 1, 30, 16)),
-    minChange: clampNum(r.minChange, 0.01, 0.9, 0.1),
+    minChange: clampNum(r.minChange, 0.01, 0.9, 0.04),
     maxDepth: Math.floor(clampNum(r.maxDepth, 0, 4, 3)),
     maxTries: Math.floor(clampNum(r.maxTries, 5, 120, 70)),
     settleMs: Math.floor(clampNum(r.settleMs, 0, 5000, 800)),
+    clickTimeoutMs: Math.floor(clampNum(r.clickTimeoutMs, 500, 8000, 1500)),
     animations: r.animations === 'allow' ? 'allow' : 'disabled',
     blocked: new RegExp(DEFAULT_BLOCKED + (Array.isArray(r.blockedWords) && r.blockedWords.length
       ? '|' + r.blockedWords.map(w => String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') : ''), 'i'),
@@ -96,6 +97,16 @@ export function diffFrac(a, b) {
 export async function isBlank(buf) {
   const st = await sharp(buf).stats();
   return Math.max(...st.channels.map(c => c.stdev)) < 2.5;
+}
+
+// how different the visible words of two screens are (0 = same words, 1 = nothing in common)
+export function textDist(a, b) {
+  const A = new Set(a), B = new Set(b);
+  let inter = 0;
+  for (const w of A) if (B.has(w)) inter++;
+  const union = A.size + B.size - inter;
+  if (union < 6) return 0;  // too little text to judge
+  return 1 - inter / union;
 }
 
 function startServer(dir) {
@@ -150,9 +161,23 @@ async function makeContext(browser, dev, req) {
 
 async function runSteps(page, steps, req) {
   for (const s of steps) {
-    if (s.click) await page.click(s.click, { timeout: 2500 });
-    else if (s.fill) await page.fill(s.fill[0], String(s.fill[1]), { timeout: 2500 });
+    if (s.click) {
+      try { await page.click(s.click, { timeout: req.clickTimeoutMs }); }
+      catch (e) {
+        // animated / pulsing buttons never become "stable"; retry once without that check
+        if (!/stable|intercept/i.test(String(e.message))) throw e;
+        await page.click(s.click, { timeout: req.clickTimeoutMs, force: true });
+      }
+    }
+    else if (s.fill) await page.fill(s.fill[0], String(s.fill[1]), { timeout: req.clickTimeoutMs });
     else if (s.press) await page.keyboard.press(String(s.press));
+    else if (Array.isArray(s.drag) && s.drag.length > 1) {
+      const pts = s.drag;
+      await page.mouse.move(pts[0][0], pts[0][1]);
+      await page.mouse.down();
+      for (const q of pts.slice(1)) await page.mouse.move(q[0], q[1], { steps: 8 });
+      await page.mouse.up();
+    }
     else if (s.hook !== undefined) await page.evaluate(k => window.__shots.show(k), s.hook);
     else if (s.wait) { await page.waitForTimeout(Math.min(Number(s.wait) || 0, 5000)); continue; }
     await settle(page, req.settleMs);
@@ -184,7 +209,8 @@ async function describePage(page) {
     let title = '';
     for (const el of document.querySelectorAll('h1,h2,[data-screen-title]')) { if (vis(el)) { title = (el.innerText || '').trim(); break; } }
     const hint = ((document.body && document.body.innerText) || '').replace(/\s+/g, ' ').trim().slice(0, 160);
-    return { name, title: title.slice(0, 80), hint, docTitle: document.title || '' };
+    const tokens = Array.from(new Set(((document.body && document.body.innerText) || '').toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])).slice(0, 300);
+    return { name, title: title.slice(0, 80), hint, docTitle: document.title || '', tokens };
   });
 }
 
@@ -196,6 +222,12 @@ async function listClickables(page, req) {
       const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
       return r.width > 8 && r.height > 8 && cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0.05 &&
         r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+    };
+    // like vis(), but also accepts items below the fold (menus / lists scroll; the click scrolls them into view)
+    const visList = el => {
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      return r.width > 8 && r.height > 8 && cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0.05 &&
+        r.bottom > 0 && r.right > 0 && r.top < innerHeight * 3 && r.left < innerWidth;
     };
     const uniq = id => document.querySelectorAll('#' + esc(id)).length === 1;
     const css = el => {
@@ -212,9 +244,10 @@ async function listClickables(page, req) {
       return (parts[0] && parts[0][0] === '#' ? '' : 'body > ') + parts.join(' > ');
     };
     const sel = 'button,a[href],[role="button"],[role="tab"],[onclick],summary,.tab,.nav-item,[data-nav],[data-go],[data-target],[data-tab]';
-    const out = [], seen = new Set();
+    const out = [], seen = new Set(), groups = new Map();
+    const navRe = /menu|nav|tab|setting|more|drawer|sidebar|hamburger|options|profile|home|back|next|prev/i;
     for (const el of document.querySelectorAll(sel)) {
-      if (!vis(el) || el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+      if (!visList(el) || el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
       const label = (el.innerText || el.getAttribute('aria-label') || el.title || el.id || '').trim().slice(0, 40);
       const probe = [label, el.getAttribute('aria-label'), el.title, el.id, typeof el.className === 'string' ? el.className : ''].join(' ');
       if (blocked.test(probe)) continue;
@@ -225,11 +258,37 @@ async function listClickables(page, req) {
       }
       const c = css(el);
       if (seen.has(c)) continue;
+      // look-alikes (colour swatches, grid cells, list rows): keep only a few of each kind
+      const isTab = el.hasAttribute('data-tab') || el.getAttribute('role') === 'tab';
+      const gk = el.tagName + '|' + (typeof el.className === 'string' ? el.className : '') + '|' + (el.parentElement ? el.parentElement.tagName + (el.parentElement.id || (typeof el.parentElement.className === 'string' ? el.parentElement.className : '')) : '');
+      const gn = (groups.get(gk) || 0) + 1;
+      groups.set(gk, gn);
+      if (!isTab && gn > 3) continue;
       seen.add(c);
-      out.push({ sel: c, label });
-      if (out.length >= 12) break;
+      const nav = el.hasAttribute('aria-controls') || el.hasAttribute('aria-expanded') || navRe.test(probe);
+      out.push({ sel: c, label, rank: nav ? 0 : isTab ? 1 : 2 });
+      if (out.length >= 40) break;
     }
-    return out;
+    if (out.length < 12) {
+      // elements with only a JS click listener: the pointer cursor is the best visible hint (topmost element only)
+      let scanned = 0;
+      for (const el of document.body.querySelectorAll('*')) {
+        if (++scanned > 800 || out.length >= 12) break;
+        if (el.closest(sel) && el.matches(sel)) continue;
+        const cs = getComputedStyle(el);
+        if (cs.cursor !== 'pointer' || !vis(el)) continue;
+        if (el.parentElement && getComputedStyle(el.parentElement).cursor === 'pointer') continue;
+        if (el.closest('button,a[href],[role="button"],[onclick]') && !el.matches('button,a[href],[role="button"],[onclick]')) continue;
+        const label = (el.innerText || el.getAttribute('aria-label') || el.title || el.id || '').trim().slice(0, 40);
+        const probe = [label, el.getAttribute('aria-label'), el.title, el.id, typeof el.className === 'string' ? el.className : ''].join(' ');
+        if (blocked.test(probe)) continue;
+        const c = css(el);
+        if (seen.has(c)) continue;
+        seen.add(c);
+        out.push({ sel: c, label, rank: 3 });
+      }
+    }
+    return out.map((o, i) => ({ ...o, i })).sort((a, b) => (a.rank - b.rank) || (a.i - b.i)).slice(0, 24).map(({ sel, label }) => ({ sel, label }));
   }, { blockedSrc: req.blocked.source });
 }
 
@@ -284,22 +343,24 @@ async function discover(browser, url, req, dev, log) {
         info = await describePage(page);
       } catch (e) { log(`  skip step path (${node.label}): ${String(e.message).split('\n')[0]}`); continue; }
 
-      const novel = !blank && accepted.every(a => diffFrac(a.sig, sig) >= req.minChange);
+      const novel = !blank && accepted.every(a => diffFrac(a.sig, sig) >= req.minChange || textDist(a.tokens, info.tokens) >= 0.5);
       if (node.depth === 0 && blank) warnings.push('The first screen looks blank. The app may need more time to load (raise settleMs) or it failed to start.');
       if (novel) {
         const cand = {
-          key: slug(info.name || info.title || info.docTitle, 'screen-' + (accepted.length + 1)),
-          label: info.title || info.name || info.docTitle || '', title: info.title, hint: info.hint,
+          key: slug(info.name || info.title || (info.hint || '').split(' ').slice(0, 3).join(' ') || info.docTitle, 'screen-' + (accepted.length + 1)),
+          label: info.title || info.name || (info.hint || '').split(' ').slice(0, 4).join(' ') || info.docTitle || '', title: info.title, hint: info.hint,
           source: 'scan', steps: node.steps, depth: node.depth
         };
-        accepted.push({ sig, cand });
+        accepted.push({ sig, cand, tokens: info.tokens });
         log(`  + screen "${cand.key}" (depth ${node.depth}, ${accepted.length} so far)`);
-        if (node.depth < req.maxDepth) {
-          for (const c of await listClickables(page, req)) {
-            if (clicked.has(c.sel)) continue;
-            clicked.add(c.sel);
-            queue.push({ steps: [...node.steps, { click: c.sel }], depth: node.depth + 1, label: c.label || c.sel });
-          }
+      }
+      // expand from every reachable state, not only from "new-looking" screens: a tab or menu click
+      // often changes little of the picture but reveals new buttons.
+      if (node.depth < req.maxDepth) {
+        for (const c of await listClickables(page, req)) {
+          if (clicked.has(c.sel)) continue;
+          clicked.add(c.sel);
+          queue.push({ steps: [...node.steps, { click: c.sel }], depth: node.depth + 1, label: c.label || c.sel });
         }
       }
     }
@@ -342,7 +403,7 @@ async function main() {
     server = srv.server;
     const url = `http://127.0.0.1:${srv.port}/${req.entry.split('/').map(encodeURIComponent).join('/')}`;
 
-    browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+    browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
     log(`Discovering screens (${req.devices[0].id} ${req.devices[0].width}x${req.devices[0].height})...`);
     const found = await discover(browser, url, req, req.devices[0], log);

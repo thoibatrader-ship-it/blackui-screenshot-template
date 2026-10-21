@@ -1,0 +1,132 @@
+{
+ "_note": "Example plan for Magic Doodle (index_offline.html), tested at 360x640. Put under request.screens; entry must point to the app file.",
+ "version": 1,
+ "entry": "app.html",
+ "screens": [
+  {
+   "key": "blank-canvas",
+   "label": "Blank canvas",
+   "steps": []
+  },
+  {
+   "key": "letter-a",
+   "label": "Trace letter A",
+   "steps": [
+    {
+     "click": "#menuBtn"
+    },
+    {
+     "click": "#guideSwitch"
+    },
+    {
+     "click": "#guideGrid button:nth-of-type(1)"
+    }
+   ]
+  },
+  {
+   "key": "letter-a-drawn",
+   "label": "Letter A traced",
+   "steps": [
+    {
+     "click": "#menuBtn"
+    },
+    {
+     "click": "#guideSwitch"
+    },
+    {
+     "click": "#guideGrid button:nth-of-type(1)"
+    },
+    {
+     "drag": [
+      [
+       180,
+       215
+      ],
+      [
+       85,
+       415
+      ]
+     ]
+    },
+    {
+     "drag": [
+      [
+       180,
+       215
+      ],
+      [
+       275,
+       415
+      ]
+     ]
+    },
+    {
+     "drag": [
+      [
+       120,
+       350
+      ],
+      [
+       240,
+       350
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "key": "number",
+   "label": "Numbers",
+   "steps": [
+    {
+     "click": "#menuBtn"
+    },
+    {
+     "click": "#guideSwitch"
+    },
+    {
+     "click": "#guideTabs button[data-tab=numbers]"
+    },
+    {
+     "click": "#guideGrid button:nth-of-type(2)"
+    }
+   ]
+  },
+  {
+   "key": "shape",
+   "label": "Shapes",
+   "steps": [
+    {
+     "click": "#menuBtn"
+    },
+    {
+     "click": "#guideSwitch"
+    },
+    {
+     "click": "#guideTabs button[data-tab=shapes]"
+    },
+    {
+     "click": "#guideGrid button:nth-of-type(1)"
+    }
+   ]
+  },
+  {
+   "key": "animal",
+   "label": "Animals",
+   "steps": [
+    {
+     "click": "#menuBtn"
+    },
+    {
+     "click": "#guideSwitch"
+    },
+    {
+     "click": "#guideTabs button[data-tab=animals]"
+    },
+    {
+     "click": "#guideGrid button:nth-of-type(1)"
+    }
+   ]
+  }
+ ]
+}
