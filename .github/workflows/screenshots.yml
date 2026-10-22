@@ -48,7 +48,7 @@ jobs:
         if: always()
         with:
           name: shots-preview-${{ inputs.job || 'default' }}
-          retention-days: 7
+          retention-days: 14
           path: screenshot-tool/out/preview
           if-no-files-found: warn
 
@@ -57,6 +57,6 @@ jobs:
         if: success()
         with:
           name: shots-full-${{ inputs.job || 'default' }}
-          retention-days: 3
+          retention-days: 14
           path: screenshot-tool/out/full
           if-no-files-found: warn
