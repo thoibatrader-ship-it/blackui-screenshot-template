@@ -20,8 +20,32 @@ jobs:
     permissions:
       contents: read
     steps:
-      # NOTE: no permit check yet (free and open for now).
-      # Later: add a "Verify media permit" step HERE, as the very first step, same pattern as build-apk.yml.
+      # Ticket check. Keep this the FIRST step: no valid permit = nothing below runs.
+      # The BlackUI dashboard puts a signed permit into this repo's secret SHOT_PERMIT right before it starts the run.
+      # The server takes the ticket(s) the first time it sees a permit; running the same permit again is free.
+      - name: Verify capture permit
+        env:
+          SHOT_PERMIT: ${{ secrets.SHOT_PERMIT }}
+          VERIFY_URL: https://blackui.thoibatrader.com/api/shot/verify
+        run: |
+          if [ -z "$SHOT_PERMIT" ]; then
+            echo "::error::No capture permit found. Start the capture from the BlackUI dashboard (reload the app if you already did)."
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o verify.json -w '%{http_code}' -X POST "$VERIFY_URL" \
+              -H 'Content-Type: application/json' --data "{\"permit\":\"$SHOT_PERMIT\"}" || echo 000)
+            if [ "$code" = "200" ]; then echo "Permit accepted."; exit 0; fi
+            if [ "$code" = "401" ] || [ "$code" = "403" ] || [ "$code" = "402" ]; then
+              msg=$(python3 -c 'import json;print(json.load(open("verify.json"))["error"]["message"])' 2>/dev/null || true)
+              echo "::error::Capture not allowed: ${msg:-permit refused (HTTP $code)}"
+              exit 1
+            fi
+            echo "Server answered HTTP $code (attempt $attempt of 5), trying again..."
+            sleep $((attempt * 4))
+          done
+          echo "::error::Could not reach the permit server. Please try the capture again in a few minutes."
+          exit 1
 
       - uses: actions/checkout@v4
 
